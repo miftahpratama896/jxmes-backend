@@ -1,0 +1,14 @@
+ConnectionError: Cannot close a pool while it is connecting
+    at ConnectionPool._close (D:\PRATAMA(JX2)\JX2MES_WEB\backend\node_modules\mssql\lib\base\connection-pool.js:538:30)
+    at D:\PRATAMA(JX2)\JX2MES_WEB\backend\node_modules\mssql\lib\base\connection-pool.js:521:12
+    at new Promise (<anonymous>)
+    at ConnectionPool.close (D:\PRATAMA(JX2)\JX2MES_WEB\backend\node_modules\mssql\lib\base\connection-pool.js:520:12)
+    at ConnectionPool.globalClose (D:\PRATAMA(JX2)\JX2MES_WEB\backend\node_modules\mssql\lib\global-connection.js:46:22)
+    at Object.close (D:\PRATAMA(JX2)\JX2MES_WEB\backend\node_modules\mssql\lib\global-connection.js:76:15)
+    at D:\PRATAMA(JX2)\JX2MES_WEB\backend\server.js:63:15
+    at process.processTicksAndRejections (node:internal/process/task_queues:95:5) {
+  code: undefined
+}
+
+Node.js v21.6.1
+[nodemon] app crashed - waiting for file changes before starting...
