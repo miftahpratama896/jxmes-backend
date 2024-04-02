@@ -489,8 +489,54 @@ app.post("/api/product-result-target", async (req, res) => {
   }
 });
 
+app.post('/product-ccs', async (req, res) => {
+  try {
+    // Destructure data yang dikirimkan dari client
+    const {
+      D_DATEFROM,
+      D_DATETO,
+      D_JXLINE,
+      D_JX2LINE,
+      D_RLS,
+      D_MODEL,
+      D_SYTLE,
+      D_GENDER,
+      CEK_RLS,
+      D_TYPE,
+      D_SHIFT,
+      D_SUMMARY_LINECEK
+    } = req.body;
+
+    // Buat koneksi ke database
+    await sql.connect(config);
+
+    // Eksekusi stored procedure
+    const result = await sql.query`EXEC SP_UI_SCAN_DUNK_LOW_CSS_REPORT 
+      @D_DATEFROM = ${D_DATEFROM},
+      @D_DATETO = ${D_DATETO},
+      @D_JXLINE = ${D_JXLINE},
+      @D_JX2LINE = ${D_JX2LINE},
+      @D_RLS = ${D_RLS},
+      @D_MODEL = ${D_MODEL},
+      @D_SYTLE = ${D_SYTLE},
+      @D_GENDER = ${D_GENDER},
+      @CEK_RLS = ${CEK_RLS},
+      @D_TYPE = ${D_TYPE},
+      @D_SHIFT = ${D_SHIFT},
+      @D_SUMMARY_LINECEK = ${D_SUMMARY_LINECEK}`;
+
+    // Tutup koneksi
+    await sql.close();
+
+    res.json({ success: true, data: result.recordsets });
+  } catch (error) {
+    console.error('Error:', error);
+    res.status(500).json({ success: false, message: 'Internal server error' });
+  }
+});
+
 // route to get all data from stored procedure
-app.post('/po-balance', async (req, res) => {
+app.post("/po-balance", async (req, res) => {
   try {
     // Koneksi ke basis data
     await sql.connect(config);
@@ -511,21 +557,23 @@ app.post('/po-balance', async (req, res) => {
     // Mengirimkan hasil eksekusi prosedur tersimpan sebagai respons
     res.json(result.recordset);
   } catch (error) {
-    console.error('Error executing stored procedure:', error);
-    res.status(500).json({ error: 'Internal server error' });
+    console.error("Error executing stored procedure:", error);
+    res.status(500).json({ error: "Internal server error" });
   }
 });
 
-app.post('/po-balance-modal', async (req, res) => {
+app.post("/po-balance-modal", async (req, res) => {
   try {
     // Membuka koneksi ke database
     await sql.connect(config);
 
     // Mendapatkan data dari request
-    const { JXLINE, WC, RLS, PO, STYLE, ASSY_INPUT, D_SIZE, CEK_GUBUN } = req.body;
+    const { JXLINE, WC, RLS, PO, STYLE, ASSY_INPUT, D_SIZE, CEK_GUBUN } =
+      req.body;
 
     // Mengeksekusi stored procedure
-    const result = await sql.query`EXEC SP_UI_TR_PO_BALANCE_POP ${JXLINE}, ${WC}, ${RLS}, ${PO}, ${STYLE}, ${ASSY_INPUT}, ${D_SIZE}, ${CEK_GUBUN}`;
+    const result =
+      await sql.query`EXEC SP_UI_TR_PO_BALANCE_POP ${JXLINE}, ${WC}, ${RLS}, ${PO}, ${STYLE}, ${ASSY_INPUT}, ${D_SIZE}, ${CEK_GUBUN}`;
 
     // Menutup koneksi database
     await sql.close();
@@ -533,8 +581,10 @@ app.post('/po-balance-modal', async (req, res) => {
     // Mengirimkan hasil eksekusi stored procedure sebagai respons
     res.json({ success: true, data: result.recordset });
   } catch (err) {
-    console.error('Error executing stored procedure:', err);
-    res.status(500).json({ success: false, error: 'Error executing stored procedure' });
+    console.error("Error executing stored procedure:", err);
+    res
+      .status(500)
+      .json({ success: false, error: "Error executing stored procedure" });
   }
 });
 
@@ -726,7 +776,7 @@ app.post("/scan-jx2-jx", async (req, res) => {
   }
 });
 
-app.post('/daily-prod-qty-trend', async (req, res) => {
+app.post("/daily-prod-qty-trend", async (req, res) => {
   try {
     // Membuka koneksi dengan database
     await sql.connect(config);
@@ -746,10 +796,9 @@ app.post('/daily-prod-qty-trend', async (req, res) => {
   } catch (err) {
     // Mengirimkan pesan error jika terjadi kesalahan
     console.error(err.message);
-    res.status(500).send('Internal Server Error');
-  } 
+    res.status(500).send("Internal Server Error");
+  }
 });
-
 
 app.post("/setting-sewingQTY", async (req, res) => {
   try {
