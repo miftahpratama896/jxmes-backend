@@ -19,6 +19,16 @@ const config = {
   },
 };
 
+const configMescan = {
+  user: "sa",
+  password: "Pai2015",
+  server: "172.16.200.28",
+  database: "JX2ENG",
+  options: {
+    trustServerCertificate: true,
+  },
+};
+
 // Middleware setup
 app.use(bodyParser.json());
 app.use(bodyParser.urlencoded({ extended: true }));
@@ -617,11 +627,8 @@ app.post("/inventory", async (req, res) => {
 });
 
 // Define the route to execute the stored procedure
-app.post("/inventory-long-term", async (req, res) => {
-  try {
-    const pool = await sql.connect(config);
-
-    const {
+app.post('/inventory-long-term', async (req, res) => {
+  const {
       STOCK_DATE,
       S_DAY,
       WC,
@@ -632,26 +639,35 @@ app.post("/inventory-long-term", async (req, res) => {
       GENDER,
       C_CEK,
       PLANT,
-    } = req.body;
+      JXLINE
+  } = req.body;
 
-    const result = await pool
-      .request()
-      .input("STOCK_DATE", sql.VarChar(10), STOCK_DATE)
-      .input("S_DAY", sql.Int, S_DAY)
-      .input("WC", sql.VarChar(10), WC)
-      .input("SCAN_LINE", sql.VarChar(3), SCAN_LINE)
-      .input("RLS", sql.VarChar(6), RLS)
-      .input("STYLE_NAME", sql.VarChar(30), STYLE_NAME)
-      .input("STYLE", sql.VarChar(20), STYLE)
-      .input("GENDER", sql.VarChar(10), GENDER)
-      .input("C_CEK", sql.Int, C_CEK)
-      .input("PLANT", sql.VarChar(3), PLANT)
-      .execute("SP_UI_TR_INVENTORY_LONG_TERM");
+  try {
+      // Connect to the database
+      await sql.connect(config);
 
-    res.json(result.recordsets);
+      // Prepare request
+      const request = new sql.Request();
+      request.input('STOCK_DATE', sql.VarChar(10), STOCK_DATE);
+      request.input('S_DAY', sql.Int, S_DAY);
+      request.input('WC', sql.VarChar(10), WC);
+      request.input('SCAN_LINE', sql.VarChar(3), SCAN_LINE);
+      request.input('RLS', sql.VarChar(6), RLS);
+      request.input('STYLE_NAME', sql.VarChar(30), STYLE_NAME);
+      request.input('STYLE', sql.VarChar(20), STYLE);
+      request.input('GENDER', sql.VarChar(10), GENDER);
+      request.input('C_CEK', sql.Int, C_CEK);
+      request.input('PLANT', sql.VarChar(3), PLANT);
+      request.input('JXLINE', sql.VarChar(3), JXLINE);
+
+      // Execute stored procedure
+      const result = await request.execute('SP_UI_TR_INVENTORY_LONG_TERM');
+
+      // Send result as response
+      res.json(result.recordsets);
   } catch (err) {
-    console.error("Error executing stored procedure:", err);
-    res.status(500).send("Internal Server Error");
+      console.error('SQL error', err);
+      res.status(500).send('Server error');
   }
 });
 
@@ -729,6 +745,28 @@ app.post("/daily-prod-report", async (req, res) => {
   }
 });
 
+app.get('/daily-prod-report-detail', async (req, res) => {
+  const { PROD_DATE, TO_DATE, D_HOUR, D_LINE, D_TYPE, D_GUBUN } = req.query;
+  
+  try {
+    const pool = await sql.connect(config);
+    const result = await pool.request()
+      .input('PROD_DATE', sql.VarChar(10), PROD_DATE)
+      .input('TO_DATE', sql.VarChar(10), TO_DATE)
+      .input('D_HOUR', sql.VarChar(5), D_HOUR)
+      .input('D_LINE', sql.VarChar(2), D_LINE)
+      .input('D_TYPE', sql.VarChar(10), D_TYPE)
+      .input('D_GUBUN', sql.Int, D_GUBUN)
+      .execute('SP_UI_TR_PROD_REPORT_DETAIL');
+    
+    res.json(result.recordset);
+  } catch (err) {
+    console.error('Error executing stored procedure:', err);
+    res.status(500).send('Error executing stored procedure');
+  }
+});
+
+
 app.post("/scan-jx2-jx", async (req, res) => {
   try {
     // Buat koneksi ke database
@@ -802,50 +840,331 @@ app.post("/daily-prod-qty-trend", async (req, res) => {
 
 app.post("/setting-sewingQTY", async (req, res) => {
   try {
-    // Terhubung ke database
+    // Membuat koneksi ke database
     await sql.connect(config);
 
-    // Ekstrak parameter dari body request
-    const {
-      D_DATE,
-      D_ASSY_LINE,
-      D_ASSY_TARGET,
-      D_SEWING_LINE,
-      D_SETTING_MARKET,
-      D_DI_CUTTING,
-      D_DONE_DI_UPS,
-      D_AVAIABLE_SETTING,
-      D_ACTION,
-      D_REMARKS,
-      D_SAVE,
-    } = req.body;
+    // Menjalankan stored procedure
+    const result = await sql.query(`
+      EXEC [dbo].[SP_UI_PRT_TR_SETTING_SEWING_QTY]
+      @D_DATE = '${req.body.D_DATE}',
+      @D_ASSY_LINE = '${req.body.D_ASSY_LINE}',
+      @D_ASSY_TARGET = ${req.body.D_ASSY_TARGET},
+      @D_SEWING_LINE = '${req.body.D_SEWING_LINE}',
+      @D_SETTING_MARKET = ${req.body.D_SETTING_MARKET},
+      @D_DI_CUTTING = ${req.body.D_DI_CUTTING},
+      @D_DONE_DI_UPS = ${req.body.D_DONE_DI_UPS},
+      @D_AVAIABLE_SETTING = ${req.body.D_AVAIABLE_SETTING},
+      @D_ACTION = '${req.body.D_ACTION}',
+      @D_REMARKS = '${req.body.D_REMARKS}',
+      @D_SAVE = ${req.body.D_SAVE},
+      @D_IP = '${req.ip}'
+    `);
 
-    // Membuat request baru
+
+    // Mengembalikan hasil
+    res.json(result.recordsets);
+  } catch (error) {
+    console.error('Error executing stored procedure:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+app.post('/jxjx2-status-retur', async (req, res) => {
+  try {
+    // Buat koneksi ke database
+    await sql.connect(config);
+
+    // Panggil stored procedure dengan parameter dari body request
+    const result = await sql.query`EXEC SP_UI_PRT_JXJX2_STATUS_RETUR 
+      @FROM_DATE = ${req.body.FROM_DATE},
+      @TO_DATE = ${req.body.TO_DATE},
+      @CELL_JX = ${req.body.CELL_JX},
+      @D_STYLE = ${req.body.D_STYLE},
+      @D_MODEL = ${req.body.D_MODEL},
+      @D_GENDER = ${req.body.D_GENDER},
+      @D_RLS = ${req.body.D_RLS},
+      @D_BARCODE = ${req.body.D_BARCODE},
+      @D_CHEK = ${req.body.D_CHEK}`;
+
+    // Kirim response dengan hasil dari stored procedure
+    res.send(result.recordset);
+  } catch (err) {
+    // Tangani kesalahan jika terjadi
+    console.error('Error executing stored procedure:', err);
+    res.status(500).send('Error executing stored procedure');
+  } finally {
+    // Tutup koneksi setelah selesai
+    await sql.close();
+  }
+});
+
+//------------------------------------------------------
+// MESCAN
+
+app.post('/input-spk-cutting', async (req, res) => {
+  try {
+    await sql.connect(configMescan);
     const request = new sql.Request();
 
-    // Menambahkan parameter ke dalam request
-    request.input("D_DATE", sql.VarChar(10), D_DATE);
-    request.input("D_ASSY_LINE", sql.VarChar(2), D_ASSY_LINE);
-    request.input("D_ASSY_TARGET", sql.Int, D_ASSY_TARGET);
-    request.input("D_SEWING_LINE", sql.VarChar(4), D_SEWING_LINE);
-    request.input("D_SETTING_MARKET", sql.Int, D_SETTING_MARKET);
-    request.input("D_DI_CUTTING", sql.Int, D_DI_CUTTING);
-    request.input("D_DONE_DI_UPS", sql.Int, D_DONE_DI_UPS);
-    request.input("D_AVAIABLE_SETTING", sql.Int, D_AVAIABLE_SETTING);
-    request.input("D_ACTION", sql.VarChar(255), D_ACTION);
-    request.input("D_REMARKS", sql.VarChar(255), D_REMARKS);
-    request.input("D_SAVE", sql.Int, D_SAVE);
+    // Data yang akan dimasukkan ke dalam tabel
+    const inputData = {
+      LINE: req.body.LINE,
+      STYLE: req.body.STYLE,
+      MODEL: req.body.MODEL,
+      COMPONENT: req.body.COMPONENT,
+      MATERIAL: req.body.MATERIAL,
+      CUTT_PROCESS_DATE: req.body.CUTT_PROCESS_DATE,
+      TOTAL_DAILY_PLAN: req.body.TOTAL_DAILY_PLAN,
+      TOTAL_DAILY_ACTUAL: req.body.TOTAL_DAILY_ACTUAL
+    };
 
-    // Menjalankan stored procedure sesuai dengan kondisi D_SAVE
-    const result = await request.execute("SP_UI_PRT_TR_SETTING_SEWING_QTY");
+    // Kueri untuk memasukkan data ke dalam tabel
+    const query = `
+          INSERT INTO [JX2ENG].[dbo].[SPK_CUTTING] 
+          (ID, LINE, STYLE, MODEL, COMPONENT, MATERIAL, CUTT_PROCESS_DATE, TOTAL_DAILY_PLAN, TOTAL_DAILY_ACTUAL)
+          VALUES 
+          (NEWID(), @LINE, @STYLE, @MODEL, @COMPONENT, @MATERIAL, @CUTT_PROCESS_DATE, @TOTAL_DAILY_PLAN, @TOTAL_DAILY_ACTUAL)
+      `;
 
-    // Mengirimkan response
-    res.send(result.recordsets);
+    // Menjalankan kueri dengan parameter yang diisi dengan data yang diterima dari request
+    const result = await request
+      .input('LINE', sql.Int, inputData.LINE)
+      .input('STYLE', sql.VarChar, inputData.STYLE)
+      .input('MODEL', sql.VarChar, inputData.MODEL)
+      .input('COMPONENT', sql.VarChar, inputData.COMPONENT)
+      .input('MATERIAL', sql.VarChar, inputData.MATERIAL)
+      .input('CUTT_PROCESS_DATE', sql.Date, inputData.CUTT_PROCESS_DATE)
+      .input('TOTAL_DAILY_PLAN', sql.Int, inputData.TOTAL_DAILY_PLAN)
+      .input('TOTAL_DAILY_ACTUAL', sql.Int, inputData.TOTAL_DAILY_ACTUAL)
+      .query(query);
+
+    res.send('Data berhasil dimasukkan ke dalam tabel SPK_CUTTING.');
+  } catch (error) {
+    console.error('Terjadi kesalahan:', error);
+    res.status(500).send('Terjadi kesalahan saat memproses permintaan.');
+  }
+});
+
+app.get('/barcode-cutt', async (req, res) => {
+  try {
+    // Pastikan komponen dan model yang diterima dari permintaan body
+    const { COMPONENT, MODEL } = req.body;
+    
+    // Jika tidak ada komponen dan model, tampilkan semua data
+    if (!COMPONENT && !MODEL) {
+      // Membuat koneksi pool
+      const pool = await sql.connect(configMescan);
+      // Mengeksekusi query tanpa WHERE clause
+      const result = await pool.request().query(`SELECT [BARCODE]
+      ,[MODEL]
+      ,[COMPONENT]
+      ,[SIZE]
+      ,[MATERIAL]
+       FROM [JX2ENG].[dbo].[BARCODE_CUTT]`);
+      // Mengirimkan hasil query sebagai respons
+      return res.json(result.recordset);
+    }
+
+    // Membuat koneksi pool
+    const pool = await sql.connect(configMescan);
+    let queryString = `SELECT [BARCODE]
+    ,[MODEL]
+    ,[COMPONENT]
+    ,[SIZE]
+    ,[MATERIAL]
+     FROM [JX2ENG].[dbo].[BARCODE_CUTT] WHERE `;
+     
+    let conditions = [];
+
+    // Jika terdapat komponen, tambahkan kondisi WHERE untuk COMPONENT
+    if (COMPONENT) {
+      conditions.push(`[COMPONENT] = '${COMPONENT}'`);
+    }
+
+    // Jika terdapat model, tambahkan kondisi WHERE untuk MODEL
+    if (MODEL) {
+      conditions.push(`[MODEL] = '${MODEL}'`);
+    }
+
+    // Gabungkan semua kondisi dengan operator AND
+    queryString += conditions.join(' AND ');
+
+    // Mengeksekusi query dengan WHERE clause untuk COMPONENT dan MODEL
+    const result = await pool.request().query(queryString);
+    // Mengirimkan hasil query sebagai respons
+    res.json(result.recordset);
+  } catch (error) {
+    console.error('Error:', error.message);
+    res.status(500).send('Terjadi kesalahan saat memproses permintaan.');
+  }
+});
+
+
+app.get('/spk-cutt', async (req, res) => {
+  try {
+    // Connect to the database
+    await sql.connect(configMescan);
+
+    // Define base columns to select
+    let selectColumns = `
+      [ID],
+      [LINE],
+      [STYLE],
+      [MODEL],
+      [COMPONENT],
+      [MATERIAL],
+      [CUTT_PROCESS_DATE],
+      [TOTAL_DAILY_PLAN],
+      [TOTAL_DAILY_ACTUAL]
+    `;
+
+    // Define potential hour columns
+    const hourColumns = [
+      '01_00', '02_00', '03_00', '04_00', '05_00', '06_00', '07_00', '08_00',
+      '09_00', '10_00', '11_00', '12_00', '13_00', '14_00', '15_00', '16_00',
+      '17_00', '18_00', '19_00', '20_00', '21_00', '22_00', '23_00', '00_00'
+    ];
+
+    // Attempt to include all hour columns in the select clause
+    const existingHourColumns = [];
+    for (const col of hourColumns) {
+      try {
+        // Query to check if the column exists
+        const checkColumnQuery = `
+          SELECT TOP 1 [${col}]
+          FROM [JX2ENG].[dbo].[SPK_CUTTING]
+        `;
+        await sql.query(checkColumnQuery);
+        existingHourColumns.push(`[${col}]`);
+      } catch (err) {
+        // Column does not exist, continue to the next one
+      }
+    }
+
+    // Add existing hour columns to the select clause
+    if (existingHourColumns.length > 0) {
+      selectColumns += ', ' + existingHourColumns.join(', ');
+    }
+
+    let query = `
+      SELECT ${selectColumns}
+      FROM [JX2ENG].[dbo].[SPK_CUTTING]
+    `;
+
+    // Prepare an array for storing filter conditions
+    const filters = [];
+
+    // If LINE is not empty, add a WHERE condition
+    if (req.query.LINE && req.query.LINE !== '0') {
+      const line = typeof req.query.LINE === 'string' ? `'${req.query.LINE}'` : req.query.LINE;
+      filters.push(`[LINE] = ${line}`);
+    }
+
+    // If CUTT_PROCESS_DATE is not empty, add a WHERE condition
+    if (req.query.CUTT_PROCESS_DATE) {
+      const cuttDate = new Date(req.query.CUTT_PROCESS_DATE).toISOString();
+      filters.push(`[CUTT_PROCESS_DATE] = '${cuttDate}'`);
+    }
+
+    // Combine all filter conditions into one string
+    if (filters.length > 0) {
+      query += ' WHERE ' + filters.join(' AND ');
+    }
+
+    // Execute the main query to fetch data
+    const result = await sql.query(query);
+
+    // Send the data as a response
+    res.json(result.recordset);
   } catch (err) {
-    console.error("Error:", err);
-    res
-      .status(500)
-      .send("Terjadi kesalahan saat menjalankan stored procedure.");
+    // Handle errors if any
+    console.error('Error occurred:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
+
+app.put('/spk-cutt-update/:id', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { LINE, STYLE, MODEL, COMPONENT, MATERIAL, CUTT_PROCESS_DATE, TOTAL_DAILY_PLAN, TOTAL_DAILY_ACTUAL } = req.body;
+
+    // Membuat koneksi database
+    await sql.connect(configMescan);
+
+    // Query SQL untuk mengupdate data
+    const result = await sql.query(`
+          UPDATE [JX2ENG].[dbo].[SPK_CUTTING]
+          SET LINE = '${LINE}',
+              STYLE = '${STYLE}',
+              MODEL = '${MODEL}',
+              COMPONENT = '${COMPONENT}',
+              MATERIAL = '${MATERIAL}',
+              CUTT_PROCESS_DATE = '${CUTT_PROCESS_DATE}',
+              TOTAL_DAILY_PLAN = ${TOTAL_DAILY_PLAN},
+              TOTAL_DAILY_ACTUAL = ${TOTAL_DAILY_ACTUAL}
+          WHERE ID = '${id}'
+      `);
+
+    // Mengirimkan pesan berhasil jika berhasil mengupdate
+    if (result.rowsAffected > 0) {
+      res.status(200).send('Data updated successfully.');
+    } else {
+      res.status(404).send('Data not found.');
+    }
+  } catch (err) {
+    // Menangani kesalahan jika ada
+    console.error('Error occurred:', err);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+app.get('/monitoring-barcode', async (req, res) => {
+  try {
+    // Membuat koneksi database
+    await sql.connect(configMescan);
+
+    // Menyiapkan query SQL dasar
+    let query = `
+      SELECT [LINE]
+      ,[NO_MACHINE]
+      ,[BARCODE]
+      ,[SIZE]
+      ,[TOTAL_COUNTER_BARCODE]
+      ,[DATE]
+      FROM [JX2ENG].[dbo].[MAIN_MONITORING_SIZE_CUTT]
+    `;
+
+    // Menyiapkan array untuk menyimpan kondisi filter
+    const filters = [];
+
+    // Jika LINE tidak kosong, tambahkan filter WHERE
+    if (req.query.LINE && req.query.LINE !== '0') {
+      const line = typeof req.query.LINE === 'string' ? `'${req.query.LINE}'` : req.query.LINE;
+      filters.push(`[LINE] = ${line}`);
+    }
+
+    // Jika DATE tidak kosong, tambahkan filter WHERE
+    if (req.query.DATE) {
+      const date = new Date(req.query.DATE).toISOString();
+      filters.push(`[DATE] = '${date}'`);
+    }
+
+    // Gabungkan semua kondisi filter menjadi satu string
+    if (filters.length > 0) {
+      query += ' WHERE ' + filters.join(' AND ');
+    }
+
+    // Query SQL untuk mengambil data
+    const result = await sql.query(query);
+
+    // Mengirimkan data sebagai respons
+    res.json(result.recordset);
+  } catch (err) {
+    // Menangani kesalahan jika ada
+    console.error('Error occurred:', err);
+    res.status(500).send('Internal Server Error');
   }
 });
 
